@@ -22,17 +22,31 @@ only way to play it on a PC at all.
 
 ## Status
 
-🚧 **Scaffolding.** The Xbox 360 binary recompiles cleanly to C++ (base
-`0x82000000`, 11.1 MB image, ~3,400 assets) via ReXGlue v0.8.0's codegen — with
-**zero** manual fixups (clean codegen, no hints needed). Next up is building, then
-GPU/audio/input bring-up.
+🚧 **Boots into running guest code — chasing an early crash.** The Xbox 360 binary
+recompiles cleanly (base `0x82000000`, 11.1 MB image, ~3,400 assets, **zero** manual
+hints), builds with **no missing stubs**, and the runtime comes all the way up —
+D3D12 device, audio + XMA, input, VFS mount, function table — then loads the XEX,
+launches the guest module, and starts **executing game code**, before crashing early
+in the guest's global initialization.
 
 | Stage | State |
 |---|---|
 | Extract (STFS → XEX) | ✅ |
 | Codegen (PPC → C++) | ✅ (0 hints — clean) |
-| Build / link | ⏳ |
-| Boot / render / play | ⏳ |
+| Build / link | ✅ (22 MB exe, no stubs) |
+| Boot → guest code | ✅ reaches guest execution |
+| Runs / renders / plays | 🐛 crashes in guest global-init |
+
+**Current blocker (localized):** an unchecked C++ virtual call on a subsystem object
+that should have been created during global init but is null in our run
+(`sub_820EC138`, `outrun_recomp.0.cpp:29315`). Blunt tolerances get *past* the
+immediate null deref (`--protect_zero=false` for the read, an indirect-call
+tolerance override for the call), but the next function genuinely needs that
+subsystem — so the real fix is finding why the init step that creates it doesn't
+run. (An early red herring — a failed `ShaderDump` device probe — was ruled out: it's
+a harmless get-file-size on a different thread.) Debugging tools and the
+"boots-but-crashes" methodology are in
+[360tools/docs/runtime-debugging.md](https://github.com/sp00nznet/360tools/blob/main/docs/runtime-debugging.md).
 
 ## Building
 
